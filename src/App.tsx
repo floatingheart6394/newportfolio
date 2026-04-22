@@ -3,7 +3,6 @@ import {
   Github, 
   Linkedin, 
   Mail, 
-  Phone, 
   ExternalLink, 
   Code2, 
   Database, 
@@ -12,7 +11,6 @@ import {
   Award, 
   BookOpen, 
   ChevronRight,
-  Download,
   Terminal,
   Layers,
   Globe,
@@ -41,6 +39,9 @@ const CustomCursor = () => {
   const [isClicking, setIsClicking] = useState(false);
   const [cursorColor, setCursorColor] = useState("#7c3aed");
   const [opacity, setOpacity] = useState(1);
+  const [contrastMode, setContrastMode] = useState(false);
+  const [isOverPurple, setIsOverPurple] = useState(false);
+  const [isOverBlack, setIsOverBlack] = useState(false);
 
   useEffect(() => {
     const moveCursor = (e: MouseEvent) => {
@@ -48,34 +49,55 @@ const CustomCursor = () => {
       cursorY.set(e.clientY);
 
       const target = e.target as HTMLElement;
-      const contactSection = document.getElementById('contact');
-      const educationCard = document.getElementById('education-card');
-      const projectsSection = document.getElementById('projects');
-      const participationsSection = document.getElementById('participations');
-      const footer = document.getElementById('footer');
+      const overPurple = target.closest('#education-card, #contact, .bg-brand-600');
+      const overBlack = target.closest('#projects, #participations, #footer, .bg-slate-900, .bg-slate-800');
+      const isWhiteBg = (target.classList.contains('bg-white') || target.closest('.bg-white')) && !overPurple && !overBlack;
       
-      const isOverPurple = contactSection?.contains(target) || educationCard?.contains(target);
-      const isOverBlack = projectsSection?.contains(target) || participationsSection?.contains(target) || footer?.contains(target);
-      const isWhiteBg = target.classList.contains('bg-white') || target.closest('.bg-white');
-      const isText = ['P', 'H1', 'H2', 'H3', 'H4', 'SPAN', 'A', 'LI'].includes(target.tagName) || target.closest('p, h1, h2, h3, h4, span, a, li');
+      setIsOverPurple(!!overPurple);
+      setIsOverBlack(!!overBlack && !isWhiteBg);
 
-      if (isOverPurple && isText) {
-        // Transparent black over letters in purple section
-        setCursorColor("rgba(0,0,0,0.5)");
-        setOpacity(0.8);
-      } else if (isOverBlack && !isWhiteBg) {
-        // Purple over dark backgrounds (as requested)
-        setCursorColor("#7c3aed");
-        setOpacity(1);
-      } else if (isOverPurple) {
-        // Black over purple background (as requested)
-        setCursorColor("#000000");
-        setOpacity(1);
-      } else {
-        // Purple over white/light
-        setCursorColor("#7c3aed");
-        setOpacity(1);
+      // Refined check for text: triggers consistently across words but respects empty space
+      let isOverText = false;
+      if (typeof (document as any).caretRangeFromPoint === 'function') {
+        const range = (document as any).caretRangeFromPoint(e.clientX, e.clientY);
+        if (range && range.startContainer.nodeType === 3) {
+          const parent = range.startContainer.parentElement;
+          const isTextTag = parent && ['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'SPAN', 'LI', 'A', 'B', 'STRONG', 'EM'].includes(parent.tagName);
+          
+          if (isTextTag) {
+            // Get the bounding box of the text range at this point
+            // This prevents triggering if we are far away from the actual characters
+            const rect = range.getBoundingClientRect();
+            const distance = Math.sqrt(
+              Math.pow(e.clientX - (rect.left + rect.width / 2), 2) + 
+              Math.pow(e.clientY - (rect.top + rect.height / 2), 2)
+            );
+            
+            // 20px threshold covers word gaps and line spacing without triggering in empty gutters
+            if (distance < 20) {
+              isOverText = true;
+            }
+          }
+        }
       }
+
+      // Precision check for icons: must be directly over the icon
+      const targetElement = document.elementFromPoint(e.clientX, e.clientY);
+      const isIcon = !!targetElement?.closest('svg, i, .lucide');
+
+      const isContent = isOverText || isIcon;
+      setContrastMode(isContent);
+
+      if (overPurple) {
+        // Black cursor on purple backgrounds
+        setCursorColor("#000000");
+      } else {
+        // Brand purple cursor elsewhere
+        setCursorColor("#7c3aed");
+      }
+      
+      // Transparent version when over text/icons
+      setOpacity(isContent ? 0.45 : 1);
     };
 
     const handleMouseOver = (e: MouseEvent) => {
@@ -85,7 +107,8 @@ const CustomCursor = () => {
         target.tagName === 'A' || 
         target.closest('button') || 
         target.closest('a') ||
-        target.classList.contains('cursor-pointer')
+        target.classList.contains('cursor-pointer') ||
+        target.closest('.cursor-pointer')
       ) {
         setIsHovering(true);
       } else {
@@ -121,10 +144,14 @@ const CustomCursor = () => {
           translateY: '-50%',
         }}
         animate={{
-          scale: isClicking ? 0.8 : (isHovering ? 2.5 : 1),
-          boxShadow: isHovering ? "0 0 25px 10px rgba(124, 58, 237, 0.4)" : "0 0 0px 0px rgba(124, 58, 237, 0)",
+          scale: isClicking ? 0.8 : (isHovering || contrastMode ? 2.8 : 1),
+          // Shadow ONLY on buttons/links
+          boxShadow: isHovering 
+            ? "0 0 25px 10px rgba(124, 58, 237, 0.3)" 
+            : "0 0 0px 0px rgba(0, 0, 0, 0)",
           backgroundColor: cursorColor,
           opacity: opacity,
+          mixBlendMode: "normal",
         }}
         transition={{ 
           type: "spring", 
@@ -134,6 +161,89 @@ const CustomCursor = () => {
         }}
       />
     </>
+  );
+};
+
+const BackgroundDecorations = () => {
+  return (
+    <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10">
+      {/* Heavy Moving Grid */}
+      <div className="absolute inset-0 opacity-[0.12] animate-move-grid" 
+        style={{ 
+          backgroundImage: 'linear-gradient(rgba(79, 70, 229, 0.5) 2px, transparent 2px), linear-gradient(90deg, rgba(79, 70, 229, 0.5) 2px, transparent 2px)',
+          backgroundSize: '50px 50px' 
+        }} 
+      />
+
+      {/* Floating Code Snippets */}
+      <motion.div 
+        animate={{ 
+          x: [-50, 250, -50],
+          y: [-100, 100, -100],
+          rotate: [0, 360]
+        }}
+        transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+        className="absolute top-[10%] left-[10%] text-brand-500/40 font-mono text-6xl font-black select-none"
+      >
+        {"{...}"}
+      </motion.div>
+      <motion.div 
+        animate={{ 
+          x: [150, -300, 150],
+          y: [200, -200, 200],
+          rotate: [360, 0]
+        }}
+        transition={{ duration: 35, repeat: Infinity, ease: "linear" }}
+        className="absolute bottom-[10%] right-[10%] text-cyan-500/40 font-mono text-8xl font-black select-none"
+      >
+        {"import"}
+      </motion.div>
+
+      {/* Falling Binary/Code "Particles" */}
+      <div className="absolute inset-0 opacity-[0.25]">
+        {[...Array(25)].map((_, i) => (
+          <motion.div
+            key={i}
+            initial={{ y: -1000, opacity: 0 }}
+            animate={{ y: 2500, opacity: [0, 1, 1, 0] }}
+            transition={{
+              duration: 3 + Math.random() * 7,
+              repeat: Infinity,
+              delay: Math.random() * 15,
+              ease: "linear"
+            }}
+            className="absolute text-brand-500 font-mono text-[10px] whitespace-nowrap writing-mode-vertical"
+            style={{ left: `${Math.random() * 100}%` }}
+          >
+            {Array(30).fill(0).map(() => (Math.random() > 0.5 ? "1" : "0")).join("")}
+          </motion.div>
+        ))}
+      </div>
+      
+      {/* Moving Blobs */}
+      {[...Array(8)].map((_, i) => (
+        <motion.div
+          key={i}
+          className="absolute w-12 h-12 rounded-full blur-3xl"
+          style={{
+            background: i % 3 === 0 ? '#8b5cf6' : i % 3 === 1 ? '#06b6d4' : '#ec4899',
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+          }}
+          animate={{
+            x: [0, Math.random() * 600 - 300, 0],
+            y: [0, Math.random() * 600 - 300, 0],
+            opacity: [0.5, 0.9, 0.5],
+            scale: [1, 3, 1],
+          }}
+          transition={{
+            duration: 20 + Math.random() * 20,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+        />
+      ))}
+    </div>
   );
 };
 
@@ -164,29 +274,22 @@ const ProjectCard = ({ project }: { project: any; key?: any }) => {
       viewport={{ once: false, margin: "-50px" }}
       whileHover={{ y: -10, scale: 1.02 }}
       transition={{ duration: 0.5, type: "spring" }}
-      className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 flex flex-col h-full group"
+      className="bg-white/80 backdrop-blur-md rounded-2xl overflow-hidden shadow-sm border border-slate-100 flex flex-col h-full group"
     >
-      <div className="h-48 bg-slate-100 relative overflow-hidden border-b-2 border-brand-500/50">
+      <div className="h-80 bg-slate-50/50 backdrop-blur-sm relative overflow-hidden border-b border-slate-100 p-3">
         {project.image ? (
           <img 
             src={project.image} 
             alt={project.title} 
-            className="w-full h-full object-cover object-top group-hover:scale-110 transition-transform duration-500"
+            className="w-full h-full object-cover object-top rounded-xl border-4 border-white shadow-sm group-hover:scale-105 transition-transform duration-500"
             referrerPolicy="no-referrer"
           />
         ) : (
-          <>
-            <motion.div 
-              whileHover={{ scale: 1.1 }}
-              className="absolute inset-0 bg-gradient-to-br from-brand-500/20 to-cyan-500/20 group-hover:opacity-100 transition-opacity" 
-              onClick={() => {}}
-            />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Code2 className="w-12 h-12 text-slate-300 group-hover:text-brand-400 transition-colors" />
-            </div>
-          </>
+          <div className="w-full h-full flex items-center justify-center rounded-xl bg-gradient-to-br from-brand-500/20 to-cyan-500/20 border-4 border-white shadow-sm">
+            <Code2 className="w-12 h-12 text-slate-300 group-hover:text-brand-400 transition-colors" />
+          </div>
         )}
-        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-semibold text-brand-600 shadow-sm">
+        <div className="absolute top-6 right-6 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-semibold text-brand-600 shadow-sm border border-slate-100">
           {project.date}
         </div>
       </div>
@@ -211,10 +314,20 @@ const ProjectCard = ({ project }: { project: any; key?: any }) => {
           ))}
         </ul>
         <div className="flex gap-4">
-          <a href="#" className="flex items-center gap-2 text-sm font-semibold text-brand-600 hover:text-brand-700 transition-colors">
+          <a 
+            href={project.github || "#"} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="flex items-center gap-2 text-sm font-semibold text-brand-600 hover:text-brand-700 transition-colors"
+          >
             <Github className="w-4 h-4" /> Code
           </a>
-          <a href="#" className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">
+          <a 
+            href={project.demo || "#"} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors"
+          >
             <ExternalLink className="w-4 h-4" /> Demo
           </a>
         </div>
@@ -232,22 +345,22 @@ const ParticipationCard = ({ item, onClick }: { item: any; onClick: () => void; 
       whileHover={{ y: -10, scale: 1.02 }}
       transition={{ duration: 0.5, type: "spring" }}
       onClick={onClick}
-      className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 flex flex-col h-full group cursor-pointer"
+      className="bg-white/80 backdrop-blur-md rounded-2xl overflow-hidden shadow-sm border border-slate-100 flex flex-col h-full group"
     >
-      <div className="h-48 bg-slate-100 relative overflow-hidden border-b-2 border-brand-500/50">
+      <div className="h-64 bg-slate-50/50 backdrop-blur-sm relative overflow-hidden border-b border-slate-100 p-3">
         {item.image ? (
           <img 
             src={item.image} 
             alt={item.title} 
-            className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-500"
+            className="w-full h-full object-cover object-center rounded-xl border-4 border-white shadow-sm group-hover:scale-105 transition-transform duration-500"
             referrerPolicy="no-referrer"
           />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-50">
+          <div className="w-full h-full flex items-center justify-center rounded-xl bg-slate-50 border-4 border-white shadow-sm">
             <Camera className="w-12 h-12 text-slate-200" />
           </div>
         )}
-        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-semibold text-brand-600 shadow-sm">
+        <div className="absolute top-6 right-6 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-semibold text-brand-600 shadow-sm border border-slate-100">
           {item.date}
         </div>
       </div>
@@ -263,7 +376,7 @@ const ParticipationCard = ({ item, onClick }: { item: any; onClick: () => void; 
         </div>
       </div>
       <div className="p-6 pt-0 mt-auto">
-        <div className="flex items-center gap-2 text-sm font-bold text-brand-600 group-hover:translate-x-2 transition-transform">
+        <div className="flex items-center gap-2 text-sm font-bold text-brand-600 group-hover:translate-x-2 transition-transform cursor-pointer inline-flex">
           View Details <ChevronRight className="w-4 h-4" />
         </div>
       </div>
@@ -271,7 +384,15 @@ const ParticipationCard = ({ item, onClick }: { item: any; onClick: () => void; 
   );
 };
 
-const CertificateCard = ({ i, idx, achievement, setSelectedItem }: { i: number; idx: number; achievement: string; setSelectedItem: (item: any) => void }) => {
+interface Achievement {
+  title: string;
+  issuer: string;
+  instructor?: string;
+  year: string;
+  score?: string;
+}
+
+const CertificateCard = ({ i, idx, achievement, setSelectedItem }: { i: number; idx: number; achievement: Achievement; setSelectedItem: (item: any) => void }) => {
   const imgMap: Record<number, string> = {
     1: "/cert1.png",
     2: "/cert3.png",
@@ -280,6 +401,8 @@ const CertificateCard = ({ i, idx, achievement, setSelectedItem }: { i: number; 
     5: "/cert2.JPG"
   };
   const img = imgMap[i];
+
+  const formattedDescription = `${achievement.title}\nIssued by: ${achievement.issuer}${achievement.instructor ? `\nInstructor: ${achievement.instructor}` : ''}\nYear: ${achievement.year}${achievement.score ? `\nScore: ${achievement.score}` : ''}`;
 
   return (
     <motion.div 
@@ -292,16 +415,17 @@ const CertificateCard = ({ i, idx, achievement, setSelectedItem }: { i: number; 
         delay: idx * 0.1 
       }}
       whileHover={{ scale: 1.05, zIndex: 10, rotate: 0 }}
-      onClick={() => {
-        if (img) {
-          setSelectedItem({ 
-            image: img, 
-            title: i === 5 ? "Achievement" : "Certification", 
-            description: achievement 
-          });
-        }
-      }}
-      className="aspect-[4/3] bg-white rounded-2xl border-2 border-solid border-brand-500 flex flex-col items-center justify-center text-slate-300 group hover:border-brand-600 transition-all cursor-pointer overflow-hidden relative shadow-lg hover:shadow-2xl"
+                onClick={() => {
+                  if (img) {
+                    setSelectedItem({ 
+                      image: img, 
+                      type: i === 5 ? "Achievement" : "Certification", 
+                      title: achievement.title,
+                      description: `Issued by: ${achievement.issuer}${achievement.instructor ? `\nInstructor: ${achievement.instructor}` : ''}\nYear: ${achievement.year}${achievement.score ? `\nScore: ${achievement.score}` : ''}`
+                    });
+                  }
+                }}
+      className="aspect-[4/3] bg-white/70 backdrop-blur-md rounded-2xl border-2 border-solid border-brand-500 flex flex-col items-center justify-center text-slate-300 group hover:border-brand-600 transition-all cursor-pointer overflow-hidden relative shadow-lg hover:shadow-2xl"
     >
       {img ? (
         <img 
@@ -321,18 +445,39 @@ const CertificateCard = ({ i, idx, achievement, setSelectedItem }: { i: number; 
   );
 };
 
-const AchievementPoint = ({ achievement, idx }: { achievement: string; idx: number }) => (
+const AchievementPoint = ({ achievement, idx }: { achievement: Achievement; idx: number }) => (
   <motion.div 
     initial={{ opacity: 0, x: -30 }}
     whileInView={{ opacity: 1, x: 0 }}
     viewport={{ once: false }}
     transition={{ delay: idx * 0.05 }}
-    className="flex gap-4 items-start"
+    className="flex gap-4 items-start group"
   >
-    <div className="w-10 h-10 rounded-full bg-brand-100 text-brand-600 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
-      <Award className="w-5 h-5" />
+    <div className="w-12 h-12 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0 mt-0.5 shadow-sm border border-brand-100 group-hover:bg-brand-600 group-hover:text-white transition-all duration-300">
+      <Award className="w-6 h-6" />
     </div>
-    <p className="text-slate-700 font-medium text-lg leading-relaxed">{achievement}</p>
+    <div className="flex flex-col">
+      <h4 className="text-slate-900 font-bold text-lg leading-tight group-hover:text-brand-600 transition-colors">{achievement.title}</h4>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
+        <span className="text-slate-500 text-sm font-medium flex items-center gap-1.5">
+          <div className="w-1 h-1 rounded-full bg-brand-400" />
+          {achievement.issuer}
+        </span>
+        {achievement.instructor && (
+          <span className="text-slate-400 text-sm italic font-medium">
+            ({achievement.instructor})
+          </span>
+        )}
+        <span className="text-slate-400 text-xs font-bold uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded">
+          {achievement.year}
+        </span>
+        {achievement.score && (
+          <span className="text-emerald-600 text-xs font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
+            Score: {achievement.score}
+          </span>
+        )}
+      </div>
+    </div>
   </motion.div>
 );
 
@@ -348,7 +493,7 @@ export default function App() {
 
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<{ image: string; title: string; description?: string } | null>(null);
+  const [selectedItem, setSelectedItem] = useState<{ image: string; title: string; description?: string; type?: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
@@ -390,11 +535,10 @@ export default function App() {
 
   const resumeData = {
     name: "Reshma V",
-    title: "BTech Artificial Intelligence and Data Science",
-    summary: "Second year B.Tech student with a strong interest in backend and full stack development. Learning Python, JavaScript, REST APIs, and backend development. Looking for an internship to build intelligent software solutions while gaining practical industry experience.",
+    title: "AI & Data Science Student | Backend Developer",
+    summary: "Dedicated second-year B.Tech student specializing in Artificial Intelligence and Data Science. I am passionate about engineering robust backend systems and crafting seamless full-stack experiences. With a foundation in Python, JavaScript, and RESTful architectures, I focus on building scalable, data-driven solutions and am eager to contribute to innovative production environments.",
     contact: {
       email: "reshmavijayakumar88@gmail.com",
-      phone: "+91 6382441231",
       linkedin: "https://www.linkedin.com/in/reshma-vijayakumar",
       github: "https://github.com/floatingheart6394"
     },
@@ -410,19 +554,22 @@ export default function App() {
         title: "TRAVISTA - YOUR SMART TRAVEL COMPANION",
         date: "JAN 2026",
         image: "/travista.png",
-        description: "Scalable backend services for managing user profiles and travel data with secure CRUD operations.",
-        tags: ["Python", "FastAPI", "PostgreSQL", "JWT"],
+        github: "https://github.com/floatingheart6394/Travista",
+        demo: "https://travista-two.vercel.app/",
+        description: "An AI-powered integrated travel platform that secured 2nd prize at the PSG iTech Project Expo 2026. Designed to unify itineraries, expense tracking, and emergency safety features into a single, seamless experience.",
+        tags: ["Python", "FastAPI", "PostgreSQL", "RAG"],
         highlights: [
-          "Designed RESTful APIs for profile and travel data management",
-          "Integrated PostgreSQL for optimized query performance",
-          "Implemented JWT-based authentication for secure session management",
-          "Validated backend functionalities for reliability and performance"
+          "Secured 2nd Prize at Department Project Expo 2026 as Team Lead (ThinkSync)",
+          "Led backend implementation, architecting RESTful APIs and database schemas",
+          "Engineered unified system integration for AI itineraries and RAG-based assistance",
+          "Managed end-to-end development lifecycles, team coordination, and GitHub workflows"
         ]
       },
       {
         title: "RESUME CHECKER- AI",
         date: "DEC 2025",
         image: "/resume-checker.png",
+        github: "https://github.com/floatingheart6394/Resume-Checker",
         description: "AI-based resume analysis system using TF-IDF vectorization and Naive Bayes classification.",
         tags: ["Python", "Naive Bayes", "SQLite", "Matplotlib"],
         highlights: [
@@ -440,52 +587,52 @@ export default function App() {
       cgpa: "8.33"
     },
     achievements: [
-      "The Complete Web Development Bootcamp | Udemy - Angela Yu | 2026",
-      "Won 2nd Prize in Department Project Expo for Travista | 2025",
-      "The Joy of Computing Using Python | NPTEL | 2025 (Score: 85%)",
-      "Python PCAP: Certified Associate in Python Programming | 2025",
-      "Python PCEP: Certified Entry-Level Python Programmer | 2024"
+      { title: "The Complete Web Development Bootcamp", issuer: "Udemy", instructor: "Dr. Angela Yu", year: "2026" },
+      { title: "Won 2nd Prize in Department Project Expo for Travista", issuer: "PSG iTech", year: "2026" },
+      { title: "The Joy of Computing Using Python", issuer: "NPTEL", instructor: "Prof. Sudarshan Iyengar (IIT Ropar)", year: "2025", score: "85%" },
+      { title: "Python PCAP: Certified Associate in Python Programming", issuer: "Udemy", instructor: "Adrian Weich", year: "2025" },
+      { title: "Python PCEP: Certified Entry-Level Python Programmer", issuer: "Udemy", instructor: "Adrian Weich", year: "2024" }
     ],
     participations: [
       { 
         title: "SAP X Great Lakes Hackfest 2026", 
         date: "FEB 2026",
         image: "/Screenshot 2026-04-15 104929.png",
-        description: "Participated in a 30-hour intensive hackathon focused on building innovative solutions using SAP technologies.",
-        tags: ["Hackathon", "SAP", "Innovation"]
+        description: "Represented Team PentaCode at SAP Hackfest 2026, developing a high-precision 4-level data filtering architecture. Engineered a multi-stage pipeline integrating rule-based logic, ML models, graph-based analytics, and LLM-driven refinement to optimize data processing relevance and accuracy.",
+        tags: ["Hackathon", "ML", "LLM", "SAP"]
       },
       { 
         title: "GDG Coimbatore Devfest 2025", 
         date: "NOV 2025",
         image: "/Screenshot 2026-04-15 110941.png",
-        description: "Attended the annual developer festival organized by Google Developer Group Coimbatore, exploring latest tech trends.",
-        tags: ["Conference", "Google", "Networking"]
+        description: "Attended DevFest Coimbatore 2025 themed 'Human & AI Collaboration.' Explored performance profiling using Chrome DevTools AI, building zero-cost SaaS platforms with Convex, and rapid prototyping of AI-powered applications with Firebase Studio. Gained deep insights into AI safety, prompt engineering, and collaborative software development from industry experts.",
+        tags: ["GDG", "AI", "SaaS"]
       },
       { 
         title: "Industry Academia Conclave 2025", 
-        date: "SEP 2025",
+        date: "FEB 2025",
         image: "/Screenshot 2026-04-15 111117.png",
-        description: "Engaged in the eighth edition of the Industry Academia Conclave, bridging the gap between theoretical knowledge and industry practices.",
-        tags: ["Conclave", "Industry", "PSG iTech"]
+        description: "Participated in the 8th Industry Academia Conclave themed 'Engineering the Future with AI' at PSG iTech. Gained deep insights from industry leaders at DRDO, GitHub, and TCS on AI infrastructure, secure engineering, and GitHub workflows. Explored emerging career paths in Physical AI and open-source ecosystems to align academic projects with modern industry expectations.",
+        tags: ["Conclave", "AI", "GitHub"]
       },
       { 
         title: "'Hands-on AI' workshop | SRiSHTi 2k24", 
-        date: "MAR 2024",
+        date: "OCT 2024",
         image: "/Screenshot 2026-04-15 111213.png",
-        description: "Participated in a comprehensive workshop on Artificial Intelligence during the national level technical symposium SRiSHTi.",
-        tags: ["Workshop", "AI", "Symposium"]
+        description: "Engaged in an intensive workshop at PSG College of Technology exploring Generative AI and transformers. Developed a chatbot and implemented Retrieval-Augmented Generation (RAG) workflows using Groq and Mistral AI under industry guidance.",
+        tags: ["Workshop", "AI", "RAG"]
       }
     ],
     volunteering: [
       {
         role: "Class Representative",
         period: "2025-2026",
-        description: "Serving as the primary liaison between students and faculty."
+        description: "Serving as the primary liaison between students and faculty, ensuring smooth communication and addressing academic concerns. Managed class schedules and organized internal department activities."
       },
       {
-        role: "Technical Event Lead & Coordinator",
+        role: "Technical Event Lead",
         period: "Yukta 2k26",
-        description: "Spearheaded a technical event and coordinated another technical event organized by the Coding Club for the college symposium."
+        description: "Planned and executed a technical event named 'Fast & Curious - Web Drift' as part of the Yukta 2k26 symposium, focusing on vibe coding and industry standards."
       },
       {
         role: "Workshop Volunteer & Performer",
@@ -493,15 +640,16 @@ export default function App() {
         description: "Volunteered for the Nex Gen AI workshop and performed dance during the symposium."
       },
       {
-        role: "Executive Member, Coding Club",
+        role: "Executive Member of Coding Club",
         period: "2025-2026",
-        description: "Contributing to the planning and execution of club activities and technical workshops."
+        description: "Coordinated a technical event named 'Code Warz' - a competitive coding event organized to enhance problem-solving skills among students."
       }
     ]
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans cursor-none">
+    <div className="min-h-screen bg-transparent font-sans relative">
+      <BackgroundDecorations />
       <CustomCursor />
       
       {/* Scroll Progress Bar */}
@@ -526,9 +674,9 @@ export default function App() {
               { name: "About", icon: <User className="w-4 h-4" />, color: "text-purple-500" },
               { name: "Skills", icon: <Cpu className="w-4 h-4" />, color: "text-cyan-500" },
               { name: "Projects", icon: <Code2 className="w-4 h-4" />, color: "text-pink-500" },
-              { name: "Volunteering", icon: <Heart className="w-4 h-4" />, color: "text-rose-500" },
               { name: "Achievements", icon: <Award className="w-4 h-4" />, color: "text-amber-500" },
               { name: "Participations", icon: <Globe className="w-4 h-4" />, color: "text-blue-500" },
+              { name: "Volunteering", icon: <Heart className="w-4 h-4" />, color: "text-rose-500" },
               { name: "Contact", icon: <Mail className="w-4 h-4" />, color: "text-emerald-500" },
             ].map((item) => (
               <a 
@@ -564,9 +712,9 @@ export default function App() {
                   { name: "About", icon: <User className="w-5 h-5" />, color: "text-purple-500" },
                   { name: "Skills", icon: <Cpu className="w-5 h-5" />, color: "text-cyan-500" },
                   { name: "Projects", icon: <Code2 className="w-5 h-5" />, color: "text-pink-500" },
-                  { name: "Volunteering", icon: <Heart className="w-5 h-5" />, color: "text-rose-500" },
                   { name: "Achievements", icon: <Award className="w-5 h-5" />, color: "text-amber-500" },
                   { name: "Participations", icon: <Globe className="w-5 h-5" />, color: "text-blue-500" },
+                  { name: "Volunteering", icon: <Heart className="w-5 h-5" />, color: "text-rose-500" },
                   { name: "Contact", icon: <Mail className="w-5 h-5" />, color: "text-emerald-500" },
                 ].map((item) => (
                   <a 
@@ -586,11 +734,11 @@ export default function App() {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 overflow-hidden">
+      <section className="relative pt-32 pb-20 md:pt-48 md:pb-32">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-full -z-10">
-          <div className="absolute top-20 left-10 w-72 h-72 bg-brand-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob" />
-          <div className="absolute top-40 right-10 w-72 h-72 bg-cyan-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000" />
-          <div className="absolute -bottom-20 left-1/3 w-72 h-72 bg-pink-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-4000" />
+          <div className="absolute top-20 left-10 w-72 h-72 bg-brand-200 rounded-full filter blur-3xl opacity-40 animate-blob" />
+          <div className="absolute top-40 right-10 w-72 h-72 bg-cyan-200 rounded-full filter blur-3xl opacity-40 animate-blob animation-delay-2000" />
+          <div className="absolute -bottom-20 left-1/3 w-72 h-72 bg-pink-200 rounded-full filter blur-3xl opacity-40 animate-blob animation-delay-4000" />
         </div>
 
         <div className="container mx-auto px-6">
@@ -601,21 +749,18 @@ export default function App() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
               >
-                <span className="inline-block px-4 py-1.5 rounded-full bg-brand-100 text-brand-700 text-sm font-bold mb-6">
+                <span className="inline-block px-4 py-1.5 rounded-full bg-brand-600 text-white text-sm font-bold mb-6 shadow-[0_0_20px_rgba(124,58,237,0.4)] animate-pulse border border-brand-400">
                   Available for Internships
                 </span>
                 <h1 className="text-5xl md:text-7xl font-bold text-slate-900 mb-6 leading-tight">
                   Hi, I'm <span className="text-gradient">{resumeData.name}</span>
                 </h1>
                 <p className="text-xl text-slate-600 mb-10 max-w-xl leading-relaxed">
-                  {resumeData.title}. Passionate about building <span className="text-slate-900 font-semibold">intelligent backend systems</span> and full-stack applications.
+                  Aspiring <span className="text-brand-600 font-semibold">AI Engineer</span> specializing in high-performance backend systems. I bridge the gap between data-driven insights and <span className="text-slate-900 font-semibold">scalable full-stack applications</span>.
                 </p>
                 <div className="flex flex-wrap justify-center md:justify-start gap-4">
                   <a href="#projects" className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-bold hover:bg-slate-800 transition-all flex items-center gap-2 group">
                     View Projects <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                  </a>
-                  <a href="/resume.pdf" download className="bg-white text-slate-900 border border-slate-200 px-8 py-4 rounded-2xl font-bold hover:bg-slate-50 transition-all flex items-center gap-2">
-                    <Download className="w-5 h-5" /> Resume
                   </a>
                 </div>
               </motion.div>
@@ -637,7 +782,7 @@ export default function App() {
                     />
                   </div>
                 </div>
-                <div className="absolute -bottom-14 -right-10 w-40 h-44 hidden md:block z-20 group/badge rotate-6">
+                <div className="absolute -bottom-14 -right-10 w-40 h-44 hidden md:block z-20 group/badge rotate-[-12deg]">
                   <svg viewBox="0 0 100 110" className="w-full h-full drop-shadow-2xl transition-transform group-hover/badge:scale-110 duration-500">
                     {/* Ribbons */}
                     <g className="text-slate-300">
@@ -653,9 +798,9 @@ export default function App() {
                     />
                     <circle cx="50" cy="43" r="28" fill="none" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="2 2" />
                   </svg>
-                  <div className="absolute top-[22%] left-1/2 -translate-x-1/2 flex flex-col items-center justify-center text-brand-600">
-                    <Server className="w-9 h-9 mb-0.5" />
-                    <span className="text-[9px] font-bold text-center uppercase tracking-tighter">Backend Dev</span>
+                  <div className="absolute top-[21%] left-1/2 -translate-x-1/2 flex flex-col items-center justify-center text-brand-600">
+                    <Code2 className="w-7 h-7 mb-1 -ml-1" />
+                    <span className="text-[9.5px] font-bold text-center uppercase tracking-tighter w-16 leading-tight">Software Developer</span>
                   </div>
                 </div>
               </motion.div>
@@ -663,7 +808,7 @@ export default function App() {
           </div>
         </div>
       </section>      {/* About & Education Section */}
-      <section id="about" className="py-24 bg-white overflow-hidden">
+      <section id="about" className="py-20 bg-transparent">
         <div className="container mx-auto px-6">
           <div className="max-w-6xl mx-auto">
             <SectionHeader 
@@ -677,7 +822,7 @@ export default function App() {
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: false }}
-                className="md:col-span-8 bg-slate-50 rounded-3xl p-8 md:p-10 border border-slate-100 flex flex-col justify-between"
+                className="md:col-span-8 bg-slate-50/60 backdrop-blur-md rounded-3xl p-8 md:p-10 border border-slate-100 flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-center gap-3 mb-6">
@@ -691,7 +836,7 @@ export default function App() {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-4">
-                  <div className="px-4 py-2 bg-white rounded-xl border border-slate-200 shadow-sm flex items-center gap-2">
+                  <div className="px-4 py-2 bg-white rounded-xl border border-brand-200 shadow-[0_0_15px_rgba(124,58,237,0.15)] flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                     <span className="text-sm font-bold text-slate-700">Open for Internships</span>
                   </div>
@@ -709,7 +854,7 @@ export default function App() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: false }}
                 transition={{ delay: 0.1 }}
-                className="md:col-span-4 bg-brand-600 rounded-3xl p-8 text-white relative overflow-hidden group"
+                className="md:col-span-4 bg-brand-600/90 backdrop-blur-md rounded-3xl p-8 text-white relative overflow-hidden group"
               >
                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-3xl group-hover:bg-white/20 transition-colors" />
                 <div className="relative z-10 h-full flex flex-col justify-between">
@@ -741,10 +886,10 @@ export default function App() {
                   initial={{ opacity: 0, scale: 0.9 }}
                   whileInView={{ opacity: 1, scale: 1 }}
                   viewport={{ once: false }}
-                  className="bg-slate-900 rounded-3xl p-6 text-white flex flex-col items-center justify-center text-center border border-slate-800"
+                  className="bg-slate-900/90 backdrop-blur-md rounded-3xl p-6 text-white flex flex-col items-center justify-center text-center border border-slate-800"
                 >
                   <span className="text-3xl font-bold text-brand-400 mb-1">2028</span>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Graduation Year</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Expected Graduation</span>
                 </motion.div>
                 
                 <motion.div 
@@ -786,7 +931,7 @@ export default function App() {
       </section>
 
       {/* Skills Section */}
-      <section id="skills" className="py-24">
+      <section id="skills" className="py-20 bg-transparent">
         <div className="container mx-auto px-6">
           <SectionHeader 
             title="Technical Skills" 
@@ -820,19 +965,15 @@ export default function App() {
       </section>
 
       {/* Projects Section */}
-      <section id="projects" className="py-24 bg-slate-900 text-white overflow-hidden relative">
-        <div className="absolute inset-0 opacity-10 pointer-events-none">
-          <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:40px_40px]" />
-        </div>
-        
-        <div className="max-w-[1440px] mx-auto px-4 md:px-8 relative z-10">
+      <section id="projects" className="py-20 bg-transparent text-slate-900">
+        <div className="container mx-auto px-6 relative z-10">
           <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-6">
             <div>
               <h2 className="text-3xl md:text-4xl font-bold mb-4">Featured Projects</h2>
-              <p className="text-slate-400 max-w-xl">A selection of my recent work in AI and Backend development.</p>
+              <p className="text-slate-600 max-w-xl">A selection of my recent work in AI and Backend development.</p>
               <div className="h-1.5 w-20 bg-brand-500 mt-4 rounded-full" />
             </div>
-            <button className="text-brand-400 font-bold flex items-center gap-2 hover:text-brand-300 transition-colors">
+            <button className="text-brand-600 font-bold flex items-center gap-2 hover:text-brand-700 transition-colors">
               View All Github <ExternalLink className="w-4 h-4" />
             </button>
           </div>
@@ -846,7 +987,7 @@ export default function App() {
       </section>
 
       {/* Achievements Section */}
-      <section id="achievements" className="pt-24 pb-24 bg-slate-50">
+      <section id="achievements" className="py-20 bg-transparent">
         <div className="container mx-auto px-6">
           <SectionHeader 
             title="Certifications and Achievements" 
@@ -893,23 +1034,24 @@ export default function App() {
       </section>
 
       {/* Participations Section */}
-      <section id="participations" className="py-24 bg-slate-900 text-white overflow-hidden relative">
-        <div className="absolute inset-0 opacity-5 pointer-events-none">
-          <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:60px_60px]" />
-        </div>
-        
-        <div className="max-w-[1440px] mx-auto px-4 md:px-8 relative z-10">
+      <section id="participations" className="py-20 bg-transparent text-slate-900 relative">
+        <div className="container mx-auto px-6 relative z-10">
           <SectionHeader 
             title="Participations" 
             subtitle="Events, hackathons, and conferences I've attended."
-            dark={true}
+            dark={false}
           />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
             {resumeData.participations.map((item, idx) => (
               <ParticipationCard 
                 key={idx} 
                 item={item} 
-                onClick={() => item.image && setSelectedItem({ image: item.image, title: "Participation", description: item.title })}
+                onClick={() => item.image && setSelectedItem({ 
+                  image: item.image, 
+                  type: "Participation", 
+                  title: item.title, 
+                  description: item.description 
+                })}
               />
             ))}
           </div>
@@ -917,7 +1059,7 @@ export default function App() {
       </section>
 
       {/* Volunteering Section */}
-      <section id="volunteering" className="py-24 bg-slate-50">
+      <section id="volunteering" className="py-20 bg-transparent">
         <div className="container mx-auto px-6">
           <SectionHeader 
             title="Volunteering & Leadership" 
@@ -931,7 +1073,7 @@ export default function App() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: false }}
                 transition={{ delay: idx * 0.1 }}
-                className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 hover:border-brand-200 transition-all group"
+                className="bg-white/80 backdrop-blur-md p-8 rounded-3xl shadow-sm border border-slate-100 hover:border-brand-200 transition-all group"
               >
                 <div className="flex justify-between items-start gap-4 mb-4">
                   <h4 className="text-xl font-bold text-slate-900 group-hover:text-brand-600 transition-colors">{item.role}</h4>
@@ -945,7 +1087,7 @@ export default function App() {
       </section>
 
       {/* Contact Section */}
-      <section id="contact" className="py-24 bg-brand-600 text-white relative overflow-hidden">
+      <section id="contact" className="py-24 bg-brand-600/90 backdrop-blur-lg text-white relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
           <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-white rounded-full blur-[100px]" />
           <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-cyan-400 rounded-full blur-[100px]" />
@@ -963,19 +1105,13 @@ export default function App() {
                 I'm currently looking for internship opportunities where I can contribute to meaningful projects and grow as a developer.
               </p>
               
-              <div className="flex flex-col md:flex-row justify-center gap-8 mb-12">
-                <a href={`mailto:${resumeData.contact.email}`} className="flex items-center justify-center gap-4 group">
+              <div className="flex justify-center mb-12">
+                <a href={`mailto:${resumeData.contact.email}`} className="flex flex-col md:flex-row items-center justify-center gap-4 group">
                   <div className="w-12 h-12 rounded-2xl bg-brand-700 flex items-center justify-center group-hover:bg-white group-hover:text-brand-600 transition-all">
                     <Mail className="w-6 h-6" />
                   </div>
                   <span className="text-lg font-medium">{resumeData.contact.email}</span>
                 </a>
-                <div className="flex items-center justify-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-brand-700 flex items-center justify-center">
-                    <Phone className="w-6 h-6" />
-                  </div>
-                  <span className="text-lg font-medium">{resumeData.contact.phone}</span>
-                </div>
               </div>
 
               <div className="flex justify-center gap-6">
@@ -1035,14 +1171,22 @@ export default function App() {
                     referrerPolicy="no-referrer"
                   />
                 </div>
-                <div className="w-full md:w-80 p-8 flex flex-col justify-center bg-white">
-                  <span className="inline-block px-3 py-1 rounded-full bg-brand-50 text-brand-600 text-[10px] font-bold uppercase tracking-widest mb-4">
-                    {selectedItem.title}
-                  </span>
-                  <h3 className="text-2xl font-bold text-slate-900 mb-4">
+                <div className="w-full md:w-80 p-8 flex flex-col justify-start bg-white overflow-y-auto">
+                  <div className="mb-6">
+                    <span className="inline-block px-3 py-1 rounded-full bg-brand-50 text-brand-600 text-[10px] font-bold uppercase tracking-widest mb-2">
+                       {selectedItem.type || "Detail"}
+                    </span>
+                    <h3 className="text-xl font-bold text-slate-900 leading-tight">
+                      {selectedItem.title}
+                    </h3>
+                  </div>
+                  
+                  <div className="h-[2px] w-8 bg-brand-500 rounded-full mb-6" />
+                  
+                  <div className="text-slate-600 text-sm leading-relaxed mb-8 whitespace-pre-line">
                     {selectedItem.description}
-                  </h3>
-                  <div className="h-1 w-12 bg-brand-500 rounded-full" />
+                  </div>
+
                 </div>
               </div>
             </motion.div>

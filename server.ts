@@ -11,6 +11,10 @@ async function startServer() {
 
   app.use(express.json());
 
+  // Serve static files from 'public' directory
+  const publicPath = path.resolve(process.cwd(), "public");
+  app.use(express.static(publicPath));
+
   // API Routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
