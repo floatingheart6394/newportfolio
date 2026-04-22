@@ -1105,16 +1105,10 @@ export default function App() {
                 I'm currently looking for internship opportunities where I can contribute to meaningful projects and grow as a developer.
               </p>
               
-              <div className="flex justify-center mb-12">
-                <a href={`mailto:${resumeData.contact.email}`} className="flex flex-col md:flex-row items-center justify-center gap-4 group">
-                  <div className="w-12 h-12 rounded-2xl bg-brand-700 flex items-center justify-center group-hover:bg-white group-hover:text-brand-600 transition-all">
-                    <Mail className="w-6 h-6" />
-                  </div>
-                  <span className="text-lg font-medium">{resumeData.contact.email}</span>
-                </a>
-              </div>
-
               <div className="flex justify-center gap-6">
+                <a href={`mailto:${resumeData.contact.email}`} className="w-16 h-16 rounded-2xl bg-brand-700 flex items-center justify-center hover:bg-brand-800 hover:scale-110 transition-all shadow-lg">
+                  <Mail className="w-8 h-8" />
+                </a>
                 <a href={resumeData.contact.linkedin} target="_blank" rel="noreferrer" className="w-16 h-16 rounded-2xl bg-brand-700 flex items-center justify-center hover:bg-brand-800 hover:scale-110 transition-all shadow-lg">
                   <Linkedin className="w-8 h-8" />
                 </a>
